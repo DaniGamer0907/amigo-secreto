@@ -56,8 +56,10 @@ USING (
 );
 
 -- Policy para participants: un participante puede ver su propia fila
-CREATE POLICY "participants_can_see_themselves"
+CREATE POLICY "participants_can_see_own_room"
 ON participants FOR SELECT
 USING (
-  session_token = current_setting('app.session_token', TRUE)
+  room_id IN (
+    SELECT room_id FROM participants WHERE session_token = current_setting('app.session_token', TRUE)
+  )
 );
