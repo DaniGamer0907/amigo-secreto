@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { getRoomLookupErrorMessage, getSupabaseErrorMessage } from "@/lib/errors";
 import { generateSessionToken, saveSessionToken } from "@/lib/session";
 
 function generateCode(): string {
@@ -20,13 +21,44 @@ export default function HomePage() {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [connecting, setConnecting] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function checkConnection() {
+      try {
+        const { error: connectionError } = await supabase
+          .from("rooms")
+          .select("id")
+          .limit(1);
+
+        if (!isActive) return;
+        if (connectionError) {
+          setError(getSupabaseErrorMessage(connectionError, "No se pudo conectar con Supabase."));
+        }
+      } catch (connectionError) {
+        if (isActive) {
+          setError(getSupabaseErrorMessage(connectionError, "No se pudo conectar con Supabase."));
+        }
+      } finally {
+        if (isActive) setConnecting(false);
+      }
+    }
+
+    void checkConnection();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (!name.trim()) {
-      setError("Ingresa tu nombre");
+      setError("Ingresa tu nombre.");
       return;
     }
     setLoading(true);
@@ -46,7 +78,7 @@ export default function HomePage() {
         .single();
 
       if (roomErr || !roomData) {
-        setError("No se pudo crear la sala");
+        setError(getSupabaseErrorMessage(roomErr, "No se pudo crear la sala."));
         setLoading(false);
         return;
       }
@@ -58,15 +90,15 @@ export default function HomePage() {
       });
 
       if (partErr) {
-        setError("No se pudo registrar como participante");
+        setError(getSupabaseErrorMessage(partErr, "No se pudo registrar como participante."));
         setLoading(false);
         return;
       }
 
       saveSessionToken(sessionToken);
       router.push(`/sala/${roomCode}`);
-    } catch {
-      setError("Ocurrió un error inesperado");
+    } catch (createError) {
+      setError(getSupabaseErrorMessage(createError, "Ocurrio un error inesperado."));
       setLoading(false);
     }
   };
@@ -75,26 +107,46 @@ export default function HomePage() {
     e.preventDefault();
     setError("");
     if (!name.trim() || !code.trim()) {
-      setError("Completa todos los campos");
+      setError("Completa todos los campos.");
       return;
     }
     setLoading(true);
 
     try {
+      const normalizedCode = code.trim().toUpperCase();
       const { data: roomData, error: roomErr } = await supabase
         .from("rooms")
         .select("id, status")
-        .eq("code", code.trim().toUpperCase())
+        .eq("code", normalizedCode)
         .single();
 
       if (roomErr || !roomData) {
-        setError("Sala no encontrada");
+        setError(getRoomLookupErrorMessage(roomErr));
         setLoading(false);
         return;
       }
 
       if (roomData.status !== "waiting") {
-        setError("La sala ya está en curso o finalizada");
+        setError("La sala ya esta en curso o finalizada.");
+        setLoading(false);
+        return;
+      }
+
+      const { data: existingParticipants, error: duplicateCheckErr } = await supabase
+        .from("participants")
+        .select("id")
+        .eq("room_id", roomData.id)
+        .ilike("name", name.trim())
+        .limit(1);
+
+      if (duplicateCheckErr) {
+        setError(getSupabaseErrorMessage(duplicateCheckErr, "No se pudo validar el nombre."));
+        setLoading(false);
+        return;
+      }
+
+      if (existingParticipants && existingParticipants.length > 0) {
+        setError("Ese nombre ya esta usado en esta sala. Elige otro.");
         setLoading(false);
         return;
       }
@@ -108,18 +160,26 @@ export default function HomePage() {
       });
 
       if (partErr) {
-        setError("No se pudo unirte a la sala");
+        setError(getSupabaseErrorMessage(partErr, "No se pudo unirte a la sala."));
         setLoading(false);
         return;
       }
 
       saveSessionToken(sessionToken);
-      router.push(`/sala/${code.trim().toUpperCase()}`);
-    } catch {
-      setError("Ocurrió un error inesperado");
+      router.push(`/sala/${normalizedCode}`);
+    } catch (joinError) {
+      setError(getSupabaseErrorMessage(joinError, "Ocurrio un error inesperado."));
       setLoading(false);
     }
   };
+
+  if (connecting) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-gradient-to-b from-rose-50 to-amber-50">
+        <div className="text-stone-500 text-lg font-medium">Conectando con Supabase...</div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-gradient-to-b from-rose-50 to-amber-50">
@@ -204,7 +264,7 @@ export default function HomePage() {
             />
 
             <label htmlFor="join-code" className="block text-xs font-bold uppercase tracking-wider text-stone-400 mb-1">
-              Código de sala
+              Codigo de sala
             </label>
             <input
               id="join-code"

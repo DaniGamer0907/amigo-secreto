@@ -7,25 +7,35 @@ export function useRoomRealtime(roomId: string | null) {
   const [participants, setParticipants] = useState<any[]>([]);
   const [room, setRoom] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     if (!roomId) {
       setParticipants([]);
       setRoom(null);
       setLoading(false);
+      setError(null);
       return;
     }
 
     let isActive = true;
     setLoading(true);
+    setError(null);
 
     Promise.all([
       supabase.from("participants").select("*").eq("room_id", roomId),
       supabase.from("rooms").select("*").eq("id", roomId).single(),
     ]).then(([pRes, rRes]) => {
       if (!isActive) return;
+      if (pRes.error || rRes.error) {
+        setError(pRes.error ?? rRes.error);
+      }
       if (pRes.data) setParticipants(pRes.data);
       if (rRes.data) setRoom(rRes.data);
+      setLoading(false);
+    }).catch((loadError) => {
+      if (!isActive) return;
+      setError(loadError);
       setLoading(false);
     });
 
@@ -57,7 +67,11 @@ export function useRoomRealtime(roomId: string | null) {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR" && isActive) {
+          setError(new Error("No se pudo conectar al canal de participantes."));
+        }
+      });
 
     const roomChannel = supabase
       .channel(`rooms:${roomId}`)
@@ -76,7 +90,11 @@ export function useRoomRealtime(roomId: string | null) {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR" && isActive) {
+          setError(new Error("No se pudo conectar al canal de la sala."));
+        }
+      });
 
     return () => {
       isActive = false;
@@ -85,5 +103,5 @@ export function useRoomRealtime(roomId: string | null) {
     };
   }, [roomId]);
 
-  return { participants, room, loading };
+  return { participants, room, loading, error };
 }

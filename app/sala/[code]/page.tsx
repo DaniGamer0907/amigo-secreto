@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { getRoomLookupErrorMessage, getSupabaseErrorMessage } from "@/lib/errors";
 import { getSessionToken } from "@/lib/session";
 import { useRoomRealtime } from "@/hooks/useRoomRealtime";
 
@@ -12,21 +13,48 @@ export default function SalaPage() {
   const code = typeof params.code === "string" ? params.code.toUpperCase() : "";
 
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [roomLookupLoading, setRoomLookupLoading] = useState(true);
   const [drawLoading, setDrawLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!code) return;
-    supabase
-      .from("rooms")
-      .select("id")
-      .eq("code", code)
-      .single()
-      .then(({ data }) => {
-        if (data?.id) setRoomId(data.id);
-      });
+    let isActive = true;
+    setRoomLookupLoading(true);
+    setError("");
+
+    async function loadRoom() {
+      try {
+        const { data, error: roomError } = await supabase
+          .from("rooms")
+          .select("id")
+          .eq("code", code)
+          .single();
+
+        if (!isActive) return;
+        if (roomError || !data?.id) {
+          setError(getRoomLookupErrorMessage(roomError));
+          setRoomId(null);
+          return;
+        }
+        setRoomId(data.id);
+      } catch (roomError) {
+        if (!isActive) return;
+        setError(getRoomLookupErrorMessage(roomError));
+        setRoomId(null);
+      } finally {
+        if (isActive) setRoomLookupLoading(false);
+      }
+    }
+
+    void loadRoom();
+
+    return () => {
+      isActive = false;
+    };
   }, [code]);
 
-  const { participants, room, loading } = useRoomRealtime(roomId);
+  const { participants, room, loading, error: realtimeError } = useRoomRealtime(roomId);
 
   useEffect(() => {
     if (room?.status === "drawn") {
@@ -36,6 +64,8 @@ export default function SalaPage() {
 
   const isHost = room?.host_id === getSessionToken();
   const canDraw = participants.length >= 2;
+  const displayError =
+    error || (realtimeError ? getSupabaseErrorMessage(realtimeError, "No se pudo mantener la conexion en tiempo real.") : "");
 
   const handleDraw = async () => {
     if (!roomId || !canDraw) return;
@@ -45,19 +75,41 @@ export default function SalaPage() {
         body: JSON.stringify({ room_id: roomId }),
       });
       if (error) {
-        console.error(error);
+        setError(getSupabaseErrorMessage(error, "No se pudo realizar el sorteo."));
       }
-    } catch (e) {
-      console.error(e);
+    } catch (drawError) {
+      setError(getSupabaseErrorMessage(drawError, "No se pudo realizar el sorteo."));
     } finally {
       setDrawLoading(false);
     }
   };
 
-  if (loading || !roomId) {
+  if (roomLookupLoading || (roomId && loading)) {
     return (
       <main className="min-h-screen flex items-center justify-center px-6 bg-gradient-to-b from-amber-50 to-rose-50">
-        <div className="text-stone-500 text-lg font-medium">Cargando sala...</div>
+        <div className="text-stone-500 text-lg font-medium">Conectando con Supabase...</div>
+      </main>
+    );
+  }
+
+  if (!roomId) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-6 bg-gradient-to-b from-amber-50 to-rose-50">
+        <section className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 border border-rose-100 text-center">
+          <h1 className="text-2xl font-extrabold text-rose-600 tracking-tight mb-3">
+            Sala no disponible
+          </h1>
+          <div className="px-3 py-2 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
+            {error || "Codigo de sala invalido. Revisa el codigo e intentalo de nuevo."}
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="mt-5 w-full py-3 rounded-xl bg-rose-600 text-white font-bold shadow-lg shadow-rose-200 hover:bg-rose-700 active:scale-[0.98] transition"
+          >
+            Volver al inicio
+          </button>
+        </section>
       </main>
     );
   }
@@ -65,6 +117,12 @@ export default function SalaPage() {
   return (
     <main className="min-h-screen flex flex-col items-center px-6 py-12 bg-gradient-to-b from-amber-50 to-rose-50">
       <section className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 border border-rose-100">
+        {displayError && (
+          <div className="mb-4 px-3 py-2 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
+            {displayError}
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-extrabold text-rose-600 tracking-tight uppercase">
@@ -92,7 +150,7 @@ export default function SalaPage() {
             </div>
           ))}
           {participants.length === 0 && (
-            <div className="text-sm text-stone-400 text-center py-4">Nadie se ha unido aún</div>
+            <div className="text-sm text-stone-400 text-center py-4">Nadie se ha unido aun</div>
           )}
         </div>
 
