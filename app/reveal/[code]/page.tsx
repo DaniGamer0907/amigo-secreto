@@ -40,8 +40,8 @@ export default function RevealPage() {
         }
 
         if (roomData.status !== "drawn") {
-          setError("La sala todavia no tiene sorteo realizado.");
           setLoading(false);
+          window.location.href = `/sala/${code}`;
           return;
         }
 
