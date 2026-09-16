@@ -103,7 +103,9 @@ export default function RevealPage() {
       });
 
       if (revealError) {
-        setError(getSupabaseErrorMessage(revealError, "No se pudo marcar la tarjeta como revelada."));
+        console.error("RPC reveal error:", revealError);
+        console.log("assignmentId:", assignmentId, "token:", sessionToken);
+        setError(String((revealError as any)?.message ?? revealError ?? "No se pudo marcar la tarjeta como revelada."));
         return;
       }
 
