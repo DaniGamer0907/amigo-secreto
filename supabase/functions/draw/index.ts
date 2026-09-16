@@ -8,8 +8,9 @@ function sattoloDerangement(arr: string[]): string[] {
 }
 
 async function handler(request: Request): Promise<Response> {
+  const origin = request.headers.get("origin") || "https://amigo-secreto-wine-seven.vercel.app";
   const corsHeaders = {
-    "Access-Control-Allow-Origin": "https://amigo-secreto-iota-ashen.vercel.app",
+    "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Max-Age": "86400",
