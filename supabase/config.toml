@@ -1,0 +1,2 @@
+[functions.draw]
+verify_jwt = false

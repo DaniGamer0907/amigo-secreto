@@ -1,5 +1,3 @@
-import postgres from "https://deno.land/x/postgres@v0.6.3/mod.ts";
-
 function sattoloDerangement(arr: string[]): string[] {
   const result = [...arr];
   for (let i = result.length - 1; i > 0; i--) {
@@ -9,15 +7,17 @@ function sattoloDerangement(arr: string[]): string[] {
   return result;
 }
 
-export default async function handler(request: Request): Promise<Response> {
+async function handler(request: Request): Promise<Response> {
   const corsHeaders = {
     "Access-Control-Allow-Origin": "https://amigo-secreto-iota-ashen.vercel.app",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
   };
 
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
   if (request.method !== "POST") {
@@ -44,15 +44,20 @@ export default async function handler(request: Request): Promise<Response> {
     );
   }
 
-  const connectionString = Deno.env.get("SUPABASE_DB_URL");
+  const connectionString = Deno.env.get("DB_URL");
   if (!connectionString) {
     return new Response(
-      JSON.stringify({ error: "SUPABASE_DB_URL no configurado" }),
+        JSON.stringify({ error: "DB_URL no configurado" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 
-  const sql = postgres(connectionString);
+  const { default: postgres } = await import("npm:postgres");
+  const sql = postgres(connectionString, {
+    connect_timeout: 10,
+    idle_timeout: 5,
+    max_lifetime: 30,
+  });
 
   try {
     const [room] = await sql<{ id: string; status: string }>`
@@ -109,3 +114,5 @@ export default async function handler(request: Request): Promise<Response> {
     await sql.end();
   }
 }
+
+Deno.serve(handler);
