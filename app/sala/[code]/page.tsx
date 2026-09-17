@@ -55,7 +55,7 @@ export default function SalaPage() {
         <div className="bg-paper rounded-[18px] shadow-2xl overflow-hidden flex min-h-[420px]">
           {/* Stub */}
           <div className="w-16 flex-shrink-0 bg-cranberry relative flex items-center justify-center" style={{ backgroundImage: "repeating-linear-gradient(-55deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 10px)" }}>
-            <div className="font-space-mono text-[12.5px] tracking-[0.28em] text-paper whitespace-nowrap flex items-center gap-2.5 rotate-180">
+            <div className="font-space-mono text-[12.5px] tracking-[0.28em] text-paper whitespace-nowrap flex items-center gap-2.5" style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}>
               <span className="w-1.5 h-1.5 rounded-full bg-marigold flex-shrink-0" />
               AMIGO SECRETO
               <span className="w-1.5 h-1.5 rounded-full bg-marigold flex-shrink-0" />
