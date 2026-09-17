@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "Chrome Dev Tools": {
+      "type": "local",
+      "command": [
+        "npx"
+      ]
+    }
+  }
+}
